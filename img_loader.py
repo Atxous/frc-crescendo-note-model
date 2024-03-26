@@ -5,10 +5,14 @@ import torchvision
 from PIL import Image, ImageDraw
 
 class RingDataset(torch.utils.data.Dataset):
-    def __init__(self, folder, csv_file):
+    def __init__(self, folder, csv_file, type_bbox : str = "yolo"):
         self.folder = folder
         self.csv_file = pd.read_csv(csv_file)
         self.to_tensor = torchvision.transforms.ToTensor()
+        if type_bbox == "yolo":
+            self.bbox_fn = load_bbox_for_yolo
+        else:
+            self.bbox_fn = get_bbox
         
     def get_bbox(index, csv_file):
         x1 = int(csv_file['bbox_x'][index])
@@ -24,7 +28,7 @@ class RingDataset(torch.utils.data.Dataset):
         img = cv2.imread(f"{self.folder}/{self.csv_file['image_name'][index]}")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = self.to_tensor(img)
-        return img, get_bbox(index, self.csv_file)
+        return img, torch.tensor(self.bbox_fn(index, self.csv_file), dtype=torch.float32)
 
 
 def get_image_with_bbox(index, folder, csv_file):
@@ -42,14 +46,11 @@ def get_bbox(index, csv_file):
     height = int(csv_file['bbox_height'][index])
     return x1, y1, width, height
 
-def load_bbox_for_yolo(idx, folder, csv_file):
-    csv_file = pd.read_csv(csv_file)
-    img = cv2.imread(f"{folder}/{csv_file['image_name'][idx]}")
-    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+def load_bbox_for_yolo(idx, csv_file):
     x1, y1, width, height = get_bbox(idx, csv_file)
     center = (x1 + width/2, y1 + height/2)
-    center = (center[0] / img.shape[1], center[1] / img.shape[0])
-    return center + (width / img.shape[1], height / img.shape[0], 1.0)
+    center = (center[0] / csv_file["image_width"][idx], center[1] / csv_file["image_height"][idx])
+    return center + (width / csv_file["image_width"][idx], height / csv_file["image_height"][idx], 1.0, 1.0)
 
 def show_images_with_boxes(input_tensor, output_tensor, classes):
     to_img = torchvision.transforms.ToPILImage()

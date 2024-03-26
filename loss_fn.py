@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 def iou_wh(bboxes1, bboxes2):
     """ calculate iou between each bbox in `bboxes1` with each bbox in `bboxes2`
@@ -136,6 +137,7 @@ class YOLOLoss(torch.nn.modules.loss._Loss):
             tcoord[..., 1].fill_(0.5)
 
         for b in range(nB):
+            print(y.shape)
             gt = y[b][(y[b, :, -1] >= 0)[:, None].expand_as(y[b])].view(-1, 6)[:,:4]
             gt[:, ::2] *= nW
             gt[:, 1::2] *= nH

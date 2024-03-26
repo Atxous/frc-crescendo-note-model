@@ -44,32 +44,8 @@ print(pred)
 # %%
 from img_loader import RingDataset
 
-dataset = RingDataset("video1", "labels_my-project-name_2024-03-23-07-10-18.csv")
+dataset = RingDataset("video1", "video1_annotations.csv")
 # %%
-import cv2
-# show the first image with bounding boxes
-img, target = dataset[0]
-# convert img to cv2 format
-img = img.permute(1, 2, 0).numpy()
-img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-# draw the bounding box
-x1, y1, x2, y2 = target
-cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-# show the image
-cv2.imshow("image", img)
-cv2.waitKey(0)
-# %%
-print(pred)
-# %%
-from img_loader import load_bbox_for_yolo, show_images_with_boxes
+dataset[0]
 
-pred = load_bbox_for_yolo(0, "video1", "labels_my-project-name_2024-03-23-07-10-18.csv")
-# %%
-import cv2
-import torch
-img = cv2.imread("video1/frame_0.jpg")
-# convert pred to tensor
-pred = torch.tensor(pred)
-# draw the bounding box
-show_images_with_boxes([img], [pred], ["ring"])
 # %%
