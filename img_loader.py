@@ -46,11 +46,20 @@ def get_bbox(index, csv_file):
     height = int(csv_file['bbox_height'][index])
     return x1, y1, width, height
 
-def load_bbox_for_yolo(idx, csv_file):
+def load_bbox_for_yolo(idx, csv_file, total_bbox = 10):
     x1, y1, width, height = get_bbox(idx, csv_file)
     center = (x1 + width/2, y1 + height/2)
     center = (center[0] / csv_file["image_width"][idx], center[1] / csv_file["image_height"][idx])
-    return center + (width / csv_file["image_width"][idx], height / csv_file["image_height"][idx], 1.0, 1.0)
+    bbox = center + (width / csv_file["image_width"][idx], height / csv_file["image_height"][idx], 1.0, 0.0)
+    # now expand the bbox to have total_bbox bboxes using torch.zeros, and -1 for the class
+    expanded_bbox = torch.zeros((total_bbox, len(bbox)))
+    expanded_bbox[0] = torch.tensor(bbox)
+    
+    # Set the class of the additional bounding boxes to -1
+    expanded_bbox[1:, -1] = -1
+    
+    return expanded_bbox
+
 
 def show_images_with_boxes(input_tensor, output_tensor, classes):
     to_img = torchvision.transforms.ToPILImage()
@@ -107,5 +116,3 @@ def show_images_with_boxes(input_tensor, output_tensor, classes):
             draw.text(box[:2], text = "ring", fill=color)
             
         display(img)
-
-
