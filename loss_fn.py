@@ -114,7 +114,7 @@ class YOLOLoss(torch.nn.modules.loss._Loss):
 
         range_y, range_x = torch.meshgrid(
             torch.arange(nH, dtype=x.dtype, device=x.device),
-            torch.arange(nW, dtype=x.dtype, device=x.device),
+            torch.arange(nW, dtype=x.dtype, device=x.device), indexing = "ij"
         )
         anchor_x, anchor_y = anchors[:, 0], anchors[:, 1]
 
@@ -137,7 +137,6 @@ class YOLOLoss(torch.nn.modules.loss._Loss):
             tcoord[..., 1].fill_(0.5)
 
         for b in range(nB):
-            print(y.shape)
             gt = y[b][(y[b, :, -1] >= 0)[:, None].expand_as(y[b])].view(-1, 6)[:,:4]
             gt[:, ::2] *= nW
             gt[:, 1::2] *= nH

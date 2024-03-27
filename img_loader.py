@@ -28,7 +28,7 @@ class RingDataset(torch.utils.data.Dataset):
         img = cv2.imread(f"{self.folder}/{self.csv_file['image_name'][index]}")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = self.to_tensor(img)
-        return img, torch.tensor(self.bbox_fn(index, self.csv_file), dtype=torch.float32)
+        return img, torch.tensor(self.bbox_fn(index, self.csv_file), dtype=torch.float32).clone().detach()
 
 
 def get_image_with_bbox(index, folder, csv_file):
@@ -74,9 +74,7 @@ def show_images_with_boxes(input_tensor, output_tensor, classes):
         )  # only take first four features: x0, y0, w, h
         classes = predictions[..., 5:].contiguous().view(boxes.shape[0], -1)
         boxes[:, ::2] *= img.width
-        print(boxes)
         boxes[:, 1::2] *= img.height
-        print(boxes)
         boxes = (torch.stack([
                     boxes[:, 0] - boxes[:, 2] / 2,
                     boxes[:, 1] - boxes[:, 3] / 2,
@@ -112,7 +110,7 @@ def show_images_with_boxes(input_tensor, output_tensor, classes):
             )
             
             draw = ImageDraw.Draw(img)
-            draw.rectangle(box, outline=color)
-            draw.text(box[:2], text = "ring", fill=color)
+            draw.rectangle(box, outline=10)
+            draw.text(box[:2], text = "ring", fill=10)
             
         display(img)
