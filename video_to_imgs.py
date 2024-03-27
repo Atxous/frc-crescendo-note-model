@@ -4,11 +4,11 @@ import torch
 import cv2
 import os
 
-file = "frc-crescendo-note-corpus-main\IMG_2349.MOV"
+file = r"C:\Users\jl255\Downloads\IMG_2925.mov"
 
 # we will extract frames from the video and save them as images in the folder called video1
 # we will save the frames in the folder video1
-folder = "video3"
+folder = "video8"
 os.makedirs(folder, exist_ok=True)
 
 # capture the video
