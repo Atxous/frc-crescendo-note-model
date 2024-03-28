@@ -1,34 +1,51 @@
 import pandas as pd
 import cv2
+import numpy as np
 import torch
 import torchvision
-from PIL import Image, ImageDraw
+from PIL import ImageDraw
+
+
+# hardcoded resize and crop
+# images are either 1920 x 1080 or 1080 x 1920
+class ResizePlusCrop(object):
+    def __init__(self):
+        pass
+
+    def __call__(self, imgs):
+        width, height = imgs.shape[2], imgs.shape[1]
+        if height < width:
+            cropped = torchvision.transforms.functional.resize(imgs, (360, 640), antialias=True)        
+        else:
+            cropped = torchvision.transforms.functional.resize(imgs, (640, 360), antialias=True)
+            
+        return cropped
 
 class RingDataset(torch.utils.data.Dataset):
-    def __init__(self, folder, csv_file, type_bbox : str = "yolo"):
+    def __init__(self, folder, csv_file, type_bbox : str = "yolo", spatial_transform = None, scaler = 1, transform = None):
         self.folder = folder
         self.csv_file = pd.read_csv(csv_file)
         self.to_tensor = torchvision.transforms.ToTensor()
+        self.spatial_transform = spatial_transform
+        self.transform = transform
+        self.scaler = scaler
         if type_bbox == "yolo":
             self.bbox_fn = load_bbox_for_yolo
         else:
             self.bbox_fn = get_bbox
-        
-    def get_bbox(index, csv_file):
-        x1 = int(csv_file['bbox_x'][index])
-        y1 = int(csv_file['bbox_y'][index])
-        width = int(csv_file['bbox_width'][index])
-        height = int(csv_file['bbox_height'][index])
-        return x1, y1, width, height
-    
+
     def __len__(self):
         return len(self.csv_file)
-    
+
     def __getitem__(self, index):
         img = cv2.imread(f"{self.folder}/{self.csv_file['image_name'][index]}")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = self.to_tensor(img)
-        return img, torch.tensor(self.bbox_fn(index, self.csv_file), dtype=torch.float32).clone().detach()
+        if self.spatial_transform:
+            img = self.spatial_transform(img)
+        if self.transform:
+            img = self.transform(img)
+        return img, self.bbox_fn(index, self.csv_file, self.scaler).clone().detach().float()
 
 
 def get_image_with_bbox(index, folder, csv_file):
@@ -39,25 +56,25 @@ def get_image_with_bbox(index, folder, csv_file):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     return img, get_bbox(index, csv_file)
 
-def get_bbox(index, csv_file):
+def get_bbox(index, csv_file, scaler):
     x1 = int(csv_file['bbox_x'][index])
     y1 = int(csv_file['bbox_y'][index])
     width = int(csv_file['bbox_width'][index])
     height = int(csv_file['bbox_height'][index])
-    return x1, y1, width, height
+    return x1 * scaler, y1 * scaler, width * scaler, height * scaler
 
-def load_bbox_for_yolo(idx, csv_file, total_bbox = 10):
-    x1, y1, width, height = get_bbox(idx, csv_file)
-    center = (x1 + width/2, y1 + height/2)
-    center = (center[0] / csv_file["image_width"][idx], center[1] / csv_file["image_height"][idx])
-    bbox = center + (width / csv_file["image_width"][idx], height / csv_file["image_height"][idx], 1.0, 0.0)
+def load_bbox_for_yolo(idx, csv_file, scaler, total_bbox = 10):
+    x1, y1, width, height = get_bbox(idx, csv_file, scaler)
+    center = ((x1 + width/2), (y1 + height/2))
+    center = (center[0] / (csv_file["image_width"][idx] * scaler), center[1] / (csv_file["image_height"][idx] * scaler))
+    bbox = center + (width / (csv_file["image_width"][idx] * scaler), height / (csv_file["image_height"][idx] * scaler), 1.0, 0.0)
     # now expand the bbox to have total_bbox bboxes using torch.zeros, and -1 for the class
     expanded_bbox = torch.zeros((total_bbox, len(bbox)))
     expanded_bbox[0] = torch.tensor(bbox)
-    
+
     # Set the class of the additional bounding boxes to -1
     expanded_bbox[1:, -1] = -1
-    
+
     return expanded_bbox
 
 
@@ -82,7 +99,7 @@ def show_images_with_boxes(input_tensor, output_tensor, classes):
                     boxes[:, 1] + boxes[:, 3] / 2,
         ], -1, ).cpu().to(torch.int32).numpy())
         for box, confidence, class_ in zip(boxes, confidences, classes):
-            if confidence < 0.5:
+            if confidence < 0.015:
                 continue # don't show boxes with very low confidence
             # make sure the box fits within the picture:
             box = [
@@ -95,22 +112,22 @@ def show_images_with_boxes(input_tensor, output_tensor, classes):
             #     idx = int(class_.item())
             # except ValueError:  # or the 20 softmax probabilities are given as features 6-25
             #     idx = int(torch.max(class_, 0)[1].item())
-                
+
             # print(idx)
             # try:
             #     class_ = classes[idx-1]  # the first index of torch.max is the argmax.
             # except IndexError: # if the class index does not exist, don't draw anything:
             #     continue
 
-            
+
             color = (  # green color when confident, red color when not confident.
                 int((1 - (confidence.item())**0.8 ) * 255),
                 int((confidence.item())**0.8 * 255),
                 0,
             )
-            
+
             draw = ImageDraw.Draw(img)
-            draw.rectangle(box, outline=10)
-            draw.text(box[:2], text = "ring", fill=10)
-            
+            draw.rectangle(box, outline=color)
+            draw.text(box[:2], text = "ring", fill=color)
+
         display(img)
