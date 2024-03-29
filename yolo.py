@@ -6,7 +6,7 @@ import torchvision
 import matplotlib.pyplot as plt
 
 CLASSES = ["ring"]
-# PLEASE GITHUB
+# push test
 model = pytorchyolo.TinyYolov2(9)
 img = cv2.imread("video1/frame_0.jpg")
 img = cv2.resize(img, (416, 416))
