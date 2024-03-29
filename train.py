@@ -12,9 +12,18 @@ EPOCHS = 100
 IMG_SCALE = 3
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-qmodel = pytorchyolo.TinyYolov2(8, max_channels = 256)
+qmodel = pytorchyolo.TinyYolov2(7, max_channels = 256)
 qmodel.load_pretrained(8)
 qmodel.freeze_weights()
+
+# now we're going to try and fuse the layers
+qmodel.eval()
+for m in qmodel.modules():
+    if type(m) is pytorchyolo.ConvBlock:
+        torch.quantization.fuse_modules(m, ['conv', 'bn'], inplace=True)
+    elif type(m) is pytorchyolo.ResidualBlock:
+        torch.quantization.fuse_modules(m, ['conv1', 'bn1'], inplace=True)
+        torch.quantization.fuse_modules(m, ['conv2', 'bn2'], inplace=True)
 
 qmodel.train()
 qmodel.qconfig = torch.quantization.get_default_qconfig('x86')
@@ -22,8 +31,6 @@ torch.quantization.prepare_qat(qmodel, inplace=True)
 qmodel = qmodel.to(device)
 
 transforms = torchvision.transforms.Compose([
-    torchvision.transforms.RandomHorizontalFlip(p = 0.2),
-    torchvision.transforms.RandomVerticalFlip(p = 0.2),
     torchvision.transforms.RandomApply(torch.nn.ModuleList([
         torchvision.transforms.ColorJitter()
     ]), p=0.2)
@@ -86,7 +93,9 @@ for epoch in range(EPOCHS):
 
 
 # %%
-qmodel
+for i in qmodel.modules():
+    print(i)
+    print("------")
 
 # %%
 dataset4[0]
@@ -94,4 +103,8 @@ dataset4[0]
 from img_loader import show_images_with_boxes
 img, bbox = dataset4[0]
 show_images_with_boxes(img.unsqueeze(0), bbox.unsqueeze(0), ["ring"])
+# %%
+torch.save(qmodel.state_dict(), "test.pt")
+# %%
+print(qmodel)
 # %%

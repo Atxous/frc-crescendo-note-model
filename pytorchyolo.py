@@ -19,6 +19,26 @@ class ConvBlock(torch.nn.Module):
         if self.activation:
           x = self.activation(x)
         return x
+    
+class ResidualBlock(torch.nn.Module):
+    def __init__(self, channels):
+        super(ResidualBlock, self).__init__()
+        self.conv1 = torch.nn.Conv2d(channels, channels, 3, 1, 1)
+        self.bn1 = torch.nn.BatchNorm2d(channels)
+        self.conv2 = torch.nn.Conv2d(channels, channels, 3, 1, 1)
+        self.bn2 = torch.nn.BatchNorm2d(channels)
+        self.activation = torch.nn.SiLU()
+
+    def forward(self, x):
+        skip = x
+        output = self.conv1(x)
+        output = self.bn1(output)
+        output = self.activation(output)
+        output = self.conv2(output)
+        output = self.bn2(output)
+        output = torch.add(skip, output)
+        output = torch.nn.functional.silu(output)
+        return output
 
 class TinyYolov2(torch.nn.Module):
     def __init__(
@@ -60,13 +80,15 @@ class TinyYolov2(torch.nn.Module):
         self.conv = torch.nn.ModuleList([ConvBlock(3, max_channels // (2 ** (depth - 3)), 3, 1, 1, self.activation, self.pool)])
         for i in range(depth-3, 0, -1):
             self.conv.append(ConvBlock(max_channels // (2 ** i), max_channels // (2 ** (i - 1)), 3, 1, 1, self.activation, self.pool))
-        self.conv[-2] = ConvBlock(max_channels // 4, max_channels // 2, 3, 1, 1, self.activation, self.slow_pool)
-        self.conv[-1] = ConvBlock(max_channels // 2, max_channels, 3, 1, 1, self.activation)
+            self.conv.append(ResidualBlock(max_channels // (2 ** (i - 1))))
+        print(self.conv)
+        self.conv[-2] = ConvBlock(max_channels // 2, max_channels, 3, 1, 1, self.activation, self.slow_pool)
+        self.conv.append(ConvBlock(max_channels, max_channels, 3, 1, 1, self.activation))
         # self.conv.append(ConvBlock(max_channels, max_channels, 3, 1, 1))
         # self.conv.append(torch.nn.Conv2d(max_channels, len(anchors) * (5 + num_classes), 1, 1, 0))
+        self.conv.append(ResidualBlock(max_channels))
         self.conv.append(ConvBlock(max_channels, max_channels, 3, 1, 1, self.activation))
-        self.conv.append(ConvBlock(max_channels, max_channels, 3, 1, 1, self.activation))
-        self.conv.append(ConvBlock(max_channels, max_channels, 3, 1, 1, self.activation))
+        self.conv.append(ResidualBlock(max_channels))
         self.conv.append(ConvBlock(max_channels, max_channels, 3, 1, 1))
         self.conv.append(torch.nn.Conv2d(max_channels, len(anchors) * (5 + num_classes), 1, 1, 0))
         self.conv = torch.nn.Sequential(*self.conv)
