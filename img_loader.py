@@ -31,6 +31,8 @@ class RingDataset(torch.utils.data.Dataset):
         self.scaler = scaler
         if type_bbox == "yolo":
             self.bbox_fn = load_bbox_for_yolo
+        elif type_bbox == "multiple_yolo":
+            self.bbox_fn = load_multiple_bbox_for_yolo
         else:
             self.bbox_fn = get_bbox
 
@@ -75,6 +77,21 @@ def load_bbox_for_yolo(idx, csv_file, scaler, total_bbox = 10):
     # Set the class of the additional bounding boxes to -1
     expanded_bbox[1:, -1] = -1
 
+    return expanded_bbox
+
+def load_multiple_bbox_for_yolo(idx, csv_file, scaler, total_bbox = 10):
+    # Group by image name
+    instances = csv_file[csv_file["image_name"] == csv_file["image_name"][idx]]
+    expanded_bbox = torch.zeros((total_bbox, 6))
+    expanded_bbox[:, -1] = -1
+    i = 0
+    for _, instance in instances.iterrows():
+        x1, y1, width, height = instance["bbox_x"], instance["bbox_y"], instance["bbox_width"], instance["bbox_height"]
+        center = ((x1 + width/2), (y1 + height/2))
+        center = (center[0] / (instance["image_width"] * scaler), center[1] / (instance["image_height"] * scaler))
+        bbox = center + (width / (instance["image_width"] * scaler), height / (instance["image_height"] * scaler), 1.0, 0.0)
+        expanded_bbox[i] = torch.tensor(bbox)
+        i += 1
     return expanded_bbox
 
 

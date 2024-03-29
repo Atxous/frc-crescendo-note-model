@@ -35,6 +35,8 @@ class TinyYolov2(torch.nn.Module):
     ):
         super(TinyYolov2, self).__init__()
         self.register_buffer('anchors', torch.tensor(anchors))
+        self.quant = torch.quantization.QuantStub()
+        self.dequant = torch.quantization.DeQuantStub()
         self.num_classes = num_classes
         self.pool = torch.nn.MaxPool2d(2, 2)
         self.slow_pool = torch.nn.MaxPool2d(2, 1)
@@ -58,18 +60,24 @@ class TinyYolov2(torch.nn.Module):
         self.conv = torch.nn.ModuleList([ConvBlock(3, max_channels // (2 ** (depth - 3)), 3, 1, 1, self.activation, self.pool)])
         for i in range(depth-3, 0, -1):
             self.conv.append(ConvBlock(max_channels // (2 ** i), max_channels // (2 ** (i - 1)), 3, 1, 1, self.activation, self.pool))
-        self.conv[5] = ConvBlock(max_channels // 4, max_channels // 2, 3, 1, 1, self.activation, self.slow_pool)
-        self.conv[6] = ConvBlock(max_channels // 2, max_channels, 3, 1, 1, self.activation)
+        self.conv[-2] = ConvBlock(max_channels // 4, max_channels // 2, 3, 1, 1, self.activation, self.slow_pool)
+        self.conv[-1] = ConvBlock(max_channels // 2, max_channels, 3, 1, 1, self.activation)
+        # self.conv.append(ConvBlock(max_channels, max_channels, 3, 1, 1))
+        # self.conv.append(torch.nn.Conv2d(max_channels, len(anchors) * (5 + num_classes), 1, 1, 0))
+        self.conv.append(ConvBlock(max_channels, max_channels, 3, 1, 1, self.activation))
+        self.conv.append(ConvBlock(max_channels, max_channels, 3, 1, 1, self.activation))
+        self.conv.append(ConvBlock(max_channels, max_channels, 3, 1, 1, self.activation))
         self.conv.append(ConvBlock(max_channels, max_channels, 3, 1, 1))
         self.conv.append(torch.nn.Conv2d(max_channels, len(anchors) * (5 + num_classes), 1, 1, 0))
         self.conv = torch.nn.Sequential(*self.conv)
 
 
     def forward(self, x, yolo = True):
+        x = self.quant(x)
         x = self.conv(x)
         if yolo:
             return self.yolo(x)
-        return x
+        return self.dequant(x)
 
     def load_pretrained(self, num_layers):
       assert num_layers <= 9, "There cannot be more than 9 layers."
