@@ -7,28 +7,28 @@ from img_loader import RingDataset, ResizePlusCrop
 from torch.utils.data import DataLoader, ConcatDataset
 
 # set up our model and training parameters
-BATCH_SIZE = 64
+BATCH_SIZE = 32
 EPOCHS = 100
 IMG_SCALE = 3
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 qmodel = pytorchyolo.TinyYolov2(7, max_channels = 256)
-qmodel.load_pretrained(8)
+qmodel.load_pretrained(5)
 qmodel.freeze_weights()
 
 # now we're going to try and fuse the layers
-qmodel.eval()
-for m in qmodel.modules():
-    if type(m) is pytorchyolo.ConvBlock:
-        torch.quantization.fuse_modules(m, ['conv', 'bn'], inplace=True)
-    elif type(m) is pytorchyolo.ResidualBlock:
-        torch.quantization.fuse_modules(m, ['conv1', 'bn1'], inplace=True)
-        torch.quantization.fuse_modules(m, ['conv2', 'bn2'], inplace=True)
+# qmodel.eval()
+# for m in qmodel.modules():
+#     if type(m) is pytorchyolo.ConvBlock:
+#         torch.quantization.fuse_modules(m, ['conv', 'bn'], inplace=True)
+#     elif type(m) is pytorchyolo.ResidualBlock:
+#         torch.quantization.fuse_modules(m, ['conv1', 'bn1'], inplace=True)
+#         torch.quantization.fuse_modules(m, ['conv2', 'bn2'], inplace=True)
 
-qmodel.train()
-qmodel.qconfig = torch.quantization.get_default_qconfig('x86')
-torch.quantization.prepare_qat(qmodel, inplace=True)
-qmodel = qmodel.to(device)
+# qmodel.train()
+# qmodel.qconfig = torch.quantization.get_default_qconfig('x86')
+# torch.quantization.prepare_qat(qmodel, inplace=True)
+# qmodel = qmodel.to(device)
 
 transforms = torchvision.transforms.Compose([
     torchvision.transforms.RandomApply(torch.nn.ModuleList([
@@ -44,10 +44,10 @@ concat_data = ConcatDataset([dataset, dataset2, dataset3])
 train_dataloader = DataLoader(concat_data, batch_size = BATCH_SIZE, shuffle = True)
 horizontal_train_dataloader = DataLoader(dataset4, batch_size = BATCH_SIZE, shuffle = True)
 #%%
-
+qmodel = qmodel.to(device)
 def lr_lambda(epoch):
     # LR to be 0.001 * (1/1+0.04*epoch)
-    base_lr = 0.01
+    base_lr = 0.02
     factor = 0.04
     return base_lr/(1+factor*epoch)
 
